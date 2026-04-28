@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+
+# Environment / secrets
+.env
+token.json
+credentials.json
+
+# Local data outputs
+data/*.db
+data/*.csv
+data/*.json
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

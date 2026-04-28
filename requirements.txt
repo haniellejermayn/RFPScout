@@ -1,0 +1,11 @@
+beautifulsoup4
+requests
+python-dotenv
+pdfplumber
+rapidfuzz
+questionary
+openai
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
