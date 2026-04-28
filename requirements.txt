@@ -1,6 +1,7 @@
 beautifulsoup4
 requests
 python-dotenv
+python-dateutil
 pdfplumber
 rapidfuzz
 questionary
