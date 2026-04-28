@@ -5,7 +5,7 @@ Responsibilities:
   - Collapse records that point to the same opportunity into a single
     record before they hit storage.
   - Pass 1: exact URL match via the same rfp_id hash that storage uses.
-  - Pass 2: fuzzy org name match (rapidfuzz token_sort_ratio >= 85)
+  - Pass 2: fuzzy org name match (rapidfuzz token_set_ratio >= 85)
     constrained to records sharing a service_type.
   - Preserve the higher-confidence record's fields and merge the
     sources_json lists so the final record carries every URL where
@@ -19,9 +19,12 @@ Design decisions:
   - Pass 2 requires matching service_type because the same nonprofit
     can run multiple distinct RFPs in parallel (e.g. a marketing RFP
     and a website RFP). High name similarity alone is not enough.
-  - token_sort_ratio (not simple ratio) is used so word reorderings
-    like "Foundation ABC" vs "ABC Foundation" still match, and so
-    minor suffixes like "Inc." don't sink an otherwise clean match.
+  - rapidfuzz.token_set_ratio (not sort or plain ratio) is used
+    because legal-suffix variations like "ABC Foundation" vs
+    "ABC Foundation Inc." are the canonical case we need to catch.
+    token_set_ratio scores subset relationships at 100, where
+    token_sort_ratio scores them around 84-85 — right on the
+    threshold and prone to false negatives.
   - Higher confidence wins on conflict. On a tie we keep the first
     record encountered — deterministic, no surprise re-ordering of
     inputs.
@@ -146,7 +149,7 @@ def _is_fuzzy_match(a: dict, b: dict) -> bool:
     Two records are a fuzzy match iff:
       - Both have non-empty org_name
       - Both have non-empty service_type that match exactly
-      - rapidfuzz.fuzz.token_sort_ratio(names) >= ORG_NAME_THRESHOLD
+      - rapidfuzz.fuzz.token_set_ratio(names) >= ORG_NAME_THRESHOLD
     """
     name_a = (a.get("org_name") or "").strip()
     name_b = (b.get("org_name") or "").strip()
@@ -158,7 +161,7 @@ def _is_fuzzy_match(a: dict, b: dict) -> bool:
     if not svc_a or not svc_b or svc_a != svc_b:
         return False
 
-    ratio = fuzz.token_sort_ratio(name_a, name_b)
+    ratio = fuzz.token_set_ratio(name_a, name_b)
     return ratio >= ORG_NAME_THRESHOLD
 
 
