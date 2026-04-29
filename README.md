@@ -213,7 +213,7 @@ Order of magnitude: **~3 cents per run**, dominated by the optional drafter.
 - **LLM cost** scales linearly with results. At ~$0.003/run, even 1,000 runs/month is only a few dollars.
 - **Concurrency**: V1 is single-threaded for simplicity. Async fetches (with rate limit awareness) would cut runtime by ~70%.
 
-**Real-world feasibility**: I ran one live test during development — 35 search results, 9 fetch failures (mostly 403s on aggregator PDFs), 14 `not_rfp` classifications, 12 saved RFPs including 4 with budgets and named contacts at scores ≥ 67. The pipeline ran end-to-end without crashing, and the top-scoring records were genuine, current nonprofit RFPs.
+**Real-world feasibility**: Across live testing, the pipeline ran end-to-end without crashing. One representative run processed 35 search results, hit 9 fetch failures (mostly 403s on aggregator PDFs), classified 14 pages as `not_rfp`, and saved 12 RFPs, including 4 with budgets and named contacts at scores ≥ 67. The top-scoring records were genuine, current nonprofit RFPs.
 
 ### 8. Limitations
 
