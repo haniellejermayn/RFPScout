@@ -34,7 +34,7 @@ from typing import Optional
 
 from openai import OpenAI
 
-from config import GITHUB_MODELS_BASE_URL, GITHUB_TOKEN, MAX_RETRIES, PARSER_MODEL
+from config import GITHUB_MODELS_BASE_URL, GITHUB_TOKEN, PARSER_MODEL
 from templates import EXTRACTION_SYSTEM_PROMPT, extraction_user_prompt
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,18 @@ VALID_SERVICE_TYPES = {
     "consulting", "event", "pr", "other",
 }
 
+# Anti-scrape email placeholders the LLM sometimes returns verbatim
+# from JS-rendered pages. We null these so the drafter doesn't try
+# to email obfuscation strings.
+EMAIL_PLACEHOLDERS = {
+    "[email protected]",
+    "[email\xa0protected]",   # sometimes uses non-breaking space
+}
+EMAIL_NOISE_PATTERNS = (
+    "spambots",
+    "javascript enabled",
+    "email is being protected",
+)
 
 # ---------------------------------------------------------------------------
 # Client initialisation
@@ -260,17 +272,8 @@ def _validate_and_clean(data: dict) -> dict:
 
         cleaned[field] = value
 
-    # Filter out common anti-scrape placeholder strings
-    EMAIL_PLACEHOLDERS = {
-        "[email protected]",
-        "[email\xa0protected]",   # sometimes uses non-breaking space
-    }
-    EMAIL_NOISE_PATTERNS = (
-        "spambots",
-        "javascript enabled",
-        "email is being protected",
-    )
-
+    # Filter out common anti-scrape placeholder strings (constants
+    # defined at module level above)
     if cleaned.get("contact_email"):
         email_lower = cleaned["contact_email"].lower()
         if (cleaned["contact_email"] in EMAIL_PLACEHOLDERS or

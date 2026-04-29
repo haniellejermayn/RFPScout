@@ -25,7 +25,6 @@ PARSER_MODEL = os.getenv("PARSER_MODEL", "gpt-4o-mini")
 DRAFTER_MODEL = os.getenv("DRAFTER_MODEL", "gpt-4o")
 
 # Gmail
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
 CREDENTIALS_FILE = os.getenv("GMAIL_CREDENTIALS_FILE", "credentials.json")
 TOKEN_FILE = os.getenv("GMAIL_TOKEN_FILE", "token.json")
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]

@@ -12,8 +12,8 @@ Responsibilities:
 
 Design decisions:
   - Brave was chosen over Google Programmable Search because Google
-    closed the legacy CSE free tier. Brave's free tier (varies by
-    account; the dashboard is the source of truth) is enough for V1.
+    closed the legacy CSE free tier. Brave's free tier (1,000
+    queries/month, 1 req/sec at time of writing) is enough for V1.
     Switching providers means changing this file and the env vars;
     nothing else in the pipeline cares.
   - Auth is via the X-Subscription-Token header rather than a query
@@ -82,7 +82,8 @@ def search(queries: list[str], pages: int = 1, force_demo: bool = False) -> list
 
     Args:
         queries:    List of query strings from query_builder.build_queries().
-        pages:      Number of result pages to fetch per query.
+        pages:      Number of result pages to fetch per query (clamped to
+                    Brave's max of 10).
         force_demo: If True, always use the fixture file regardless of
                     SEARCH_PROVIDER. Set by agent.py when --demo is passed
                     so the flag always wins over env config.
@@ -95,7 +96,9 @@ def search(queries: list[str], pages: int = 1, force_demo: bool = False) -> list
         - In demo mode, the fixture file is returned regardless of
           queries or pages.
         - Results are deduplicated by URL across all queries and pages.
-        - Returns an empty list (not an exception) if all queries fail.
+        - Returns an empty list (not an exception) on any failure mode:
+          missing API key, all queries failing, or fixture file missing
+          in demo mode.
     """
     if force_demo or SEARCH_PROVIDER == "demo":
         return _load_fixture()

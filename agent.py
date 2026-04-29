@@ -24,10 +24,10 @@ Design decisions:
     call would fail; --demo instead reads structured fixture records
     from examples/sample_rfp_texts.json. Drafting is skipped in --demo
     because draft generation also requires the LLM.
-  - Error handling tiers match the handover spec: search failure with
-    no fallback is fatal, fetch/extract failures are skip-and-continue,
-    storage failure is fatal (data loss is the worst outcome), export
-    failure is a warning (the database is the source of truth).
+  - Error handling tiers: storage failures are fatal (data loss is the
+    worst outcome). Empty search results are a clean no-op exit. Per-URL
+    fetch and extract failures are skip-and-continue. Export failure is
+    a warning (the database is the source of truth).
   - run_id is a UUID4 so multiple concurrent runs cannot collide. It
     is logged in storage.runs and tagged on every record so a single
     run is auditable later.
@@ -193,7 +193,7 @@ def _prompt_select(question: str, choices: list[str]) -> str:
 def _run_demo() -> int:
     """
     Zero-config end-to-end run. Uses fixture search results AND fixture
-    extracted records, so neither Google CSE nor the LLM is called.
+    extracted records, so neither the search API nor the LLM is called.
     Drafts are skipped (also LLM-dependent).
     """
     logger.info("Demo mode: end-to-end with fixtures, no API keys required.")
@@ -434,16 +434,17 @@ def _load_demo_extractions() -> dict[str, dict]:
 
 
 # ---------------------------------------------------------------------------
-# Drafts (placeholder until drafter.py is built)
+# Drafts
 # ---------------------------------------------------------------------------
 
 def _run_drafts(run_id: str, drafts_mode: str) -> None:
     """
     Trigger draft generation for high-confidence records.
 
-    drafter.py is built after agent.py reaches first-run-green. Until
-    then this is a stub that lists candidates and explains the next
-    step. The pipeline still completes successfully.
+    Falls back gracefully if drafter.py is unavailable for any reason
+    (e.g. running with a stripped-down install): logs the candidates
+    that would have been drafted and continues. The pipeline still
+    completes successfully.
     """
     candidates = fetch_draft_candidates(DRAFT_THRESHOLD)
     if not candidates:
