@@ -158,12 +158,12 @@ scorer.py  →  deduper.py  →  storage.py  →  writer.py  →  drafter.py
 
 **`scorer.py`** — Four-component score, max 100:
 
-| Component | Max | Logic |
-|---|---|---|
-| Field completeness | 40 | Linear with 7 tracked fields filled |
-| Deadline usefulness | 30 | Tiered: 0 (past/<14 days), 30 (15-60), 15 (61-120), 8 (>120), 5 (missing) |
-| Budget presence | 20 | Binary on `budget_raw` |
-| Source quality | 10 | Direct PDF (10) > direct HTML (7) > aggregator (4) > unknown (2) |
+| Component           | Max | Logic                                                                     |
+| ------------------- | --- | ------------------------------------------------------------------------- |
+| Field completeness  | 40  | Linear with 7 tracked fields filled                                       |
+| Deadline usefulness | 30  | Tiered: 0 (past/<14 days), 30 (15-60), 15 (61-120), 8 (>120), 5 (missing) |
+| Budget presence     | 20  | Binary on `budget_raw`                                                    |
+| Source quality      | 10  | Direct PDF (10) > direct HTML (7) > aggregator (4) > unknown (2)          |
 
 Weights and thresholds are constants — easy to tune.
 
@@ -179,19 +179,19 @@ Weights and thresholds are constants — easy to tune.
 
 ### 6. Tools & Tech
 
-| Layer | Choice | Why |
-|---|---|---|
-| Language | Python 3.13 | Standard for AI tooling, mature LLM SDKs |
-| Search | Brave Search API | Independent index, free tier, single-file adapter |
-| LLM (parse) | `gpt-4o-mini` via GitHub Models | Cheap (~$0.0001/page), accurate enough for structured extraction |
-| LLM (draft) | `gpt-4o` via GitHub Models | Better tone for outreach, only called for high-confidence records |
-| HTTP | `requests` | Stable, plays well with retries |
-| PDF | `pdfplumber` | Better text extraction than pypdf for structured documents |
-| HTML | `beautifulsoup4` | Standard, easy to strip noise tags |
-| Fuzzy match | `rapidfuzz` | C++ backend, ~10x faster than `fuzzywuzzy`, no GPL dependency |
-| Storage | SQLite (stdlib) | Zero-setup, ACID; swap to Postgres if scale demands it |
-| Drafts | Gmail API | Lets a human review before sending; never auto-sends |
-| CLI | `argparse` + `questionary` | Flags for repeatability, prompts for interactive use |
+| Layer       | Choice                          | Why                                                               |
+| ----------- | ------------------------------- | ----------------------------------------------------------------- |
+| Language    | Python 3.13                     | Standard for AI tooling, mature LLM SDKs                          |
+| Search      | Brave Search API                | Independent index, free tier, single-file adapter                 |
+| LLM (parse) | `gpt-4o-mini` via GitHub Models | Cheap (~$0.0001/page), accurate enough for structured extraction  |
+| LLM (draft) | `gpt-4o` via GitHub Models      | Better tone for outreach, only called for high-confidence records |
+| HTTP        | `requests`                      | Stable, plays well with retries                                   |
+| PDF         | `pdfplumber`                    | Better text extraction than pypdf for structured documents        |
+| HTML        | `beautifulsoup4`                | Standard, easy to strip noise tags                                |
+| Fuzzy match | `rapidfuzz`                     | C++ backend, ~10x faster than `fuzzywuzzy`, no GPL dependency     |
+| Storage     | SQLite (stdlib)                 | Zero-setup, ACID; swap to Postgres if scale demands it            |
+| Drafts      | Gmail API                       | Lets a human review before sending; never auto-sends              |
+| CLI         | `argparse` + `questionary`      | Flags for repeatability, prompts for interactive use              |
 
 The OpenAI SDK works against any OpenAI-compatible endpoint. GitHub Models (Azure-hosted) is currently free for small-scale use; switching to OpenAI direct, Anthropic, or any other compatible provider only changes `.env`.
 
@@ -221,8 +221,10 @@ Order of magnitude: **~3 cents per run**, dominated by the optional drafter.
 - **Anti-scraping blocks some sources.** Several nonprofit aggregators 403'd the agent on PDF endpoints despite a browser-like User-Agent. In the single live test, this hit roughly a quarter of the PDF URLs.
 - **Currency conversion is not real.** Budgets in non-USD currencies are stored faithfully in `budget_raw`, but `budget_min_usd` / `budget_max_usd` rely on the LLM's training-data sense of FX rates — fine for ballpark scoring, not real numbers.
 - **Expired deadlines aren't auto-excluded.** They score 0 for the deadline component, but pass the inclusion threshold on completeness. Triage by sorting CSV by `deadline_iso` (when the user wants only fresh ones).
+- **Draft subject lines follow a fixed template** (`"Website Design RFP — Chicago Education Fund"`) and won't match RFPs that specify a required subject line format in the document body. Always verify before sending.
 - **`deadline_iso` parsing has known edge cases.** Derived from `deadline_raw` using fuzzy parsing with a year-sanity check, so strings like `"March 15"` (no year) or `"$2,025 budget"` (year out of plausible range) intentionally stay null. This keeps the column conservative — agencies can rely on a non-null `deadline_iso` being correct, and fall back to `deadline_raw` when it isn't.
 - **Non-public RFPs require outbound channels.** See [Considerations for non-public RFPs](#considerations-for-non-public-rfps) below.
+- **Search depth is capped at 10 pages per query (Brave's hard limit).** A scheduled agent running repeatedly against the same queries would need cursor-based pagination or provider rotation to grow the database beyond this ceiling without re-fetching the same results.
 - **Brave free tier rate limit (1 req/sec)** caps per-run speed. The bottleneck is search, not LLM.
 - **LLM can hallucinate edge cases.** Mitigated by temperature 0, controlled vocabulary validation, the `not_rfp` flag, and the `parse_error` fallback.
 - **Six query templates is a small surface.** The agent finds RFPs that match common 2026-style search phrasings. Older or less standard phrasings may slip through.
@@ -276,33 +278,39 @@ In rough priority order, weighted by impact-to-effort.
 
 5. **Provider fallback chain.** Search APIs change pricing and availability often (Google CSE just demonstrated this). Wrapping `searcher.py` in a chain of providers (Brave → Tavily → SerpAPI) with automatic failover would harden the agent against any one provider going down.
 
+6. **Cursor-based pagination for scheduled runs.** Brave caps offset at 9 (10 pages per query). A nightly agent hitting the same queries would re-fetch the same top results on every run. The fix is to track the last-seen result URLs per query in SQLite and either skip known results early or shift to fresh query variants once the top pages are exhausted. This becomes important once the agent runs continuously rather than on demand.
+
 ### Medium impact
 
-6. **Configurable scoring weights.** Move the four weights, deadline tier thresholds, and aggregator domain list from `scorer.py` constants to `config.py` env vars. Lets users tune per-customer without touching code. A real product would A/B-test these per-agency.
+7. **Extract required subject lines from RFP body.** Some RFPs require a specific subject line format. Adding a required_subject field to the extractor prompt and passing it to draft_subject() as an override would fix this.
 
-7. **YAML-driven query templates.** The six templates in `query_builder.py` are hardcoded. A `queries.yaml` with `{sector}` / `{service}` / `{year}` placeholders would let non-engineers add patterns. Especially valuable for sector-specific queries (faith-based RFPs are phrased differently than environmental ones).
+8. **Make fuller use of the Brave Search API.** Several available parameters go unused: `freshness` (`pw`/`pm`) could filter to recently published RFPs without relying on deadline scoring; `count=20` would double results per page and halve API calls against the free tier quota; `more_results_available` in the response should gate pagination instead of blindly iterating; and `extra_snippets=true` returns up to 5 additional excerpts per result that could pre-filter `not_rfp` pages before fetching.
 
-8. **Headless browser for JS-heavy pages.** Sites that require JavaScript to render (or use Cloudflare anti-bot) currently 403 the agent. Falling back to Playwright when `requests` fails would recover another ~5-10% of URLs. Costs: container size, speed.
+9. **Configurable scoring weights.** Move the four weights, deadline tier thresholds, and aggregator domain list from `scorer.py` constants to `config.py` env vars. Lets users tune per-customer without touching code. A real product would A/B-test these per-agency.
 
-9. **Prompt evals.** The extractor prompt was written by hand and tested manually. Building a small eval suite (golden dataset of 20 known RFPs, measure recall and precision per field) would let me iterate on the prompt safely. Especially valuable for `org_type` (currently produces too many `unknown`s).
+10. **YAML-driven query templates.** The six templates in `query_builder.py` are hardcoded. A `queries.yaml` with `{sector}` / `{service}` / `{year}` placeholders would let non-engineers add patterns. Especially valuable for sector-specific queries (faith-based RFPs are phrased differently than environmental ones).
 
-10. **Real currency conversion.** Pin a daily FX snapshot from `exchangerate.host` and convert in `extractor.py`. Removes the LLM-estimated USD figures from the schema entirely.
+11. **Headless browser for JS-heavy pages.** Sites that require JavaScript to render (or use Cloudflare anti-bot) currently 403 the agent. Falling back to Playwright when `requests` fails would recover another ~5-10% of URLs. Costs: container size, speed.
+
+12. **Prompt evals.** The extractor prompt was written by hand and tested manually. Building a small eval suite (golden dataset of 20 known RFPs, measure recall and precision per field) would let me iterate on the prompt safely. Especially valuable for `org_type` (currently produces too many `unknown`s).
+
+13. **Real currency conversion.** Pin a daily FX snapshot from `exchangerate.host` and convert in `extractor.py`. Removes the LLM-estimated USD figures from the schema entirely.
 
 ### Lower impact / nice-to-have
 
-11. **Token usage accounting.** Log per-call token counts to the `runs` table so cost reporting is from real data, not OpenAI's published price.
+13. **Token usage accounting.** Log per-call token counts to the `runs` table so cost reporting is from real data, not OpenAI's published price.
 
-12. **Shared LLM client.** `extractor.py` and `drafter.py` each build their own OpenAI client. A single `llm_client.py` with connection pooling and unified retry/circuit-breaker logic would clean this up.
+14. **Shared LLM client.** `extractor.py` and `drafter.py` each build their own OpenAI client. A single `llm_client.py` with connection pooling and unified retry/circuit-breaker logic would clean this up.
 
-13. **Personalised draft tone.** Pass an agency's voice profile (formal, casual, mission-aligned) into `OUTREACH_SYSTEM_PROMPT` so drafts sound like the agency, not generic.
+15. **Personalised draft tone.** Pass an agency's voice profile (formal, casual, mission-aligned) into `OUTREACH_SYSTEM_PROMPT` so drafts sound like the agency, not generic.
 
-14. **Slack / HubSpot / Salesforce integrations.** New high-confidence RFPs auto-post to Slack, sync to HubSpot pipelines, or create Salesforce leads. Out of V1 scope but would close the BD loop.
+16. **Slack / HubSpot / Salesforce integrations.** New high-confidence RFPs auto-post to Slack, sync to HubSpot pipelines, or create Salesforce leads. Out of V1 scope but would close the BD loop.
 
-15. **Web UI dashboard.** A small Flask/FastAPI dashboard showing the SQLite contents, run history, and a "approve and send" button for drafts. Useful once the CLI loop is too slow for daily review.
+17. **Web UI dashboard.** A small Flask/FastAPI dashboard showing the SQLite contents, run history, and a "approve and send" button for drafts. Useful once the CLI loop is too slow for daily review.
 
-16. **Remaining unit tests.** Scoring and dedup are covered (`tests/test_scorer.py`, `tests/test_deduper.py`). The other modules are integration-tested via the live demo, but proper unit tests for `query_builder.py`, `extractor.py` (fallback paths), `storage.py`, and `writer.py` would catch regressions earlier.
+18. **Remaining unit tests.** Scoring and dedup are covered (`tests/test_scorer.py`, `tests/test_deduper.py`). The other modules are integration-tested via the live demo, but proper unit tests for `query_builder.py`, `extractor.py` (fallback paths), `storage.py`, and `writer.py` would catch regressions earlier.
 
-17. **More sectors and services.** Currently 8 sectors and 8 service types. Adding sub-categories (`marketing → email marketing`, `consulting → strategy vs ops`) would give agencies finer targeting.
+19. **More sectors and services.** Currently 8 sectors and 8 service types. Adding sub-categories (`marketing → email marketing`, `consulting → strategy vs ops`) would give agencies finer targeting.
 
 ---
 
@@ -348,13 +356,13 @@ Other modules (extractor, storage, writer, query_builder) are integration-tested
 
 A complete demo CSV for reference. This is what `python agent.py --demo` produces (formatted for readability; the actual file is one row per record).
 
-| score | org_name | service | budget_raw | deadline_raw | source_type | contact |
-|---|---|---|---|---|---|---|
-| 97 | Accountability Lab | website | $45,000 - $65,000 | June 20, 2026 | html | procurement@accountabilitylab.org |
-| 97 | International Planned Parenthood Federation | website | GBP 80,000 - 120,000 | May 30, 2026 | html | communications@ippf.org |
-| 71 | SeamlessAccess | marketing | (none) | May 15, 2026 | html | rfp@seamlessaccess.org |
-| 69 | Enterprise Community Partners | consulting | $20,000+ | August 28, 2026 | html | (none) |
-| 56 | City of Willow Springs | website | (none) | July 15, 2026 | html | clerk@willowsprings.gov |
+| score | org_name                                    | service    | budget_raw           | deadline_raw    | source_type | contact                           |
+| ----- | ------------------------------------------- | ---------- | -------------------- | --------------- | ----------- | --------------------------------- |
+| 97    | Accountability Lab                          | website    | $45,000 - $65,000    | June 20, 2026   | html        | procurement@accountabilitylab.org |
+| 97    | International Planned Parenthood Federation | website    | GBP 80,000 - 120,000 | May 30, 2026    | html        | communications@ippf.org           |
+| 71    | SeamlessAccess                              | marketing  | (none)               | May 15, 2026    | html        | rfp@seamlessaccess.org            |
+| 69    | Enterprise Community Partners               | consulting | $20,000+             | August 28, 2026 | html        | (none)                            |
+| 56    | City of Willow Springs                      | website    | (none)               | July 15, 2026   | html        | clerk@willowsprings.gov           |
 
 For the full schema, see `data/rfps.json` after running the demo. For the drafter output schema, see `examples/sample_email_drafts.json`.
 
