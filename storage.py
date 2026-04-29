@@ -25,11 +25,20 @@ import hashlib
 import json
 import logging
 import sqlite3
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from dateutil import parser as date_parser
+from dateutil.parser import UnknownTimezoneWarning
+
 from config import DB_PATH
+
+# dateutil warns about ambiguous timezone abbreviations like "EDT" / "PT" /
+# "CT" because they map to multiple zones. We don't need timezone precision
+# for deadline dates (we only keep YYYY-MM-DD), so silencing keeps logs clean.
+warnings.filterwarnings("ignore", category=UnknownTimezoneWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +243,7 @@ def _insert_rfp(conn: sqlite3.Connection, rfp_id: str, r: dict, now: str) -> Non
             "budget_min_usd": r.get("budget_min_usd"),
             "budget_max_usd": r.get("budget_max_usd"),
             "deadline_raw": r.get("deadline_raw"),
-            "deadline_iso": r.get("deadline_iso"),
+            "deadline_iso": r.get("deadline_iso") or _derive_deadline_iso(r.get("deadline_raw")),
             "contact_name": r.get("contact_name"),
             "contact_email": r.get("contact_email"),
             "contact_phone": r.get("contact_phone"),
@@ -284,7 +293,7 @@ def _update_rfp(conn: sqlite3.Connection, rfp_id: str, r: dict, now: str) -> Non
             "budget_min_usd": r.get("budget_min_usd"),
             "budget_max_usd": r.get("budget_max_usd"),
             "deadline_raw": r.get("deadline_raw"),
-            "deadline_iso": r.get("deadline_iso"),
+            "deadline_iso": r.get("deadline_iso") or _derive_deadline_iso(r.get("deadline_raw")),
             "contact_name": r.get("contact_name"),
             "contact_email": r.get("contact_email"),
             "contact_phone": r.get("contact_phone"),
@@ -446,6 +455,64 @@ def log_run_finish(
 def _utcnow() -> str:
     """Current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+# Acceptable year range for parsed deadlines. RFPs from before 2020 are
+# almost certainly stale fixtures; deadlines beyond 2031 are almost
+# certainly parser confusion (a number that looks like a year but isn't).
+_DEADLINE_YEAR_MIN = 2020
+_DEADLINE_YEAR_MAX = 2031
+
+
+def _derive_deadline_iso(raw: Optional[str]) -> Optional[str]:
+    """
+    Convert a free-form deadline string into a YYYY-MM-DD date.
+
+    Examples:
+      "April 21, 2026 at 5:00 PM CT"   -> "2026-04-21"
+      "5pm PST on April 27, 2026"      -> "2026-04-27"
+      "March 31st, 2026"               -> "2026-03-31"
+      "March 15"                       -> None  (no explicit year)
+      "$2,025 budget"                  -> None  (year out of range OR no
+                                                 month context near it)
+      None / unparseable               -> None
+
+    Why fuzzy parsing:
+      Deadline strings often include surrounding text ("Proposals due
+      by 5pm EST on May 30, 2026"). Strict parsing would reject these.
+      fuzzy=True ignores the surrounding noise and pulls the date out.
+
+    Why the year sanity check:
+      Without a year, dateutil defaults to today's year, which produces
+      misleading future dates for old RFPs ("March 15" → "2026-03-15"
+      when the RFP was actually from 2023). We require the raw string
+      to contain an explicit year in a plausible range. If not, return
+      None and let the human triage the deadline_raw column instead.
+
+    Returns None on anything we cannot confidently parse, so a missing
+    deadline_iso never blocks a record from being stored.
+    """
+    if not raw or not isinstance(raw, str):
+        return None
+
+    # Year sanity check: only proceed if the raw string contains a year
+    # in our acceptable range. This blocks both "March 15" (no year)
+    # and "$2,025" (out-of-range year) from producing a misleading ISO.
+    has_valid_year = any(
+        str(year) in raw for year in range(_DEADLINE_YEAR_MIN, _DEADLINE_YEAR_MAX + 1)
+    )
+    if not has_valid_year:
+        return None
+
+    try:
+        parsed = date_parser.parse(raw, fuzzy=True)
+        # Defense in depth: dateutil might still settle on an out-of-range
+        # year via fuzzy logic. Reject if so.
+        if not (_DEADLINE_YEAR_MIN <= parsed.year <= _DEADLINE_YEAR_MAX):
+            return None
+        return parsed.strftime("%Y-%m-%d")
+    except (ValueError, OverflowError, TypeError):
+        return None
 
 
 def _serialise_sources(sources) -> Optional[str]:

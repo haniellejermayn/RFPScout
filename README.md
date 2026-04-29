@@ -214,7 +214,7 @@ Order of magnitude: **~3 cents per run**, dominated by the optional drafter.
 - **Anti-scraping blocks some sources.** Several nonprofit aggregators 403'd the agent on PDF endpoints despite a browser-like User-Agent. In the single live test, this hit roughly a quarter of the PDF URLs.
 - **Currency conversion is not real.** Budgets in non-USD currencies are stored faithfully in `budget_raw`, but `budget_min_usd` / `budget_max_usd` rely on the LLM's training-data sense of FX rates — fine for ballpark scoring, not real numbers.
 - **Expired deadlines aren't auto-excluded.** They score 0 for the deadline component, but pass the inclusion threshold on completeness. Triage by sorting CSV by `deadline_iso` (when the user wants only fresh ones).
-- **`deadline_iso` is currently null in exports.** The schema field exists but isn't populated; `dateutil.parse(deadline_raw, fuzzy=True)` would do it but I prioritised the drafter for V1.
+- **`deadline_iso` parsing has known edge cases.** Derived from `deadline_raw` using fuzzy parsing with a year-sanity check, so strings like `"March 15"` (no year) or `"$2,025 budget"` (year out of plausible range) intentionally stay null. This keeps the column conservative — agencies can rely on a non-null `deadline_iso` being correct, and fall back to `deadline_raw` when it isn't.
 - **Non-public RFPs require outbound channels.** See [Considerations for non-public RFPs](#considerations-for-non-public-rfps) below.
 - **Brave free tier rate limit (1 req/sec)** caps per-run speed. The bottleneck is search, not LLM.
 - **LLM can hallucinate edge cases.** Mitigated by temperature 0, controlled vocabulary validation, the `not_rfp` flag, and the `parse_error` fallback.
@@ -259,15 +259,15 @@ In rough priority order, weighted by impact-to-effort.
 
 ### High impact
 
-1. **OCR for scanned PDFs.** Many older nonprofit RFPs are image-only PDFs. Adding `pytesseract` as a fallback when `pdfplumber` returns empty text would recover ~10-20% of currently-skipped RFPs. Medium effort (~1 day), high yield.
+1. **OCR for scanned PDFs.** Many older nonprofit RFPs are image-only PDFs. Adding `pytesseract` as a fallback when `pdfplumber` returns empty text would recover ~10-20% of currently-skipped RFPs.
 
 2. **Async fetching.** The biggest single performance win. Live runs spend most of their time waiting on HTTP. `aiohttp` + a semaphore for politeness would drop a typical run from ~3 min to ~30 sec. Costs: more complex error handling, rate limit awareness across coroutines.
 
-3. **`deadline_iso` derivation in `storage.py`.** Right now exports show `deadline_raw: "April 21, 2026 at 5:00 PM CT"` and `deadline_iso: null`. Parsing the raw string with `dateutil.parser.parse(fuzzy=True)` and storing the ISO version would let users filter exports by date — critical for triage. Half-day job.
+3. **Better deadline parsing for international formats.** Current parser uses dateutil's US-biased month/day default. A `"05/04/2026"` from a UK org parses as May 4 instead of April 5. Detecting the source country and passing `dayfirst=True` for non-US sources would catch this.
 
-4. **Auto-exclude expired RFPs by default.** Currently, an expired RFP with full details still passes the inclusion threshold. Adding `expired_at < today` as an exclusion (with a `--include-expired` flag for completeness) would clean up the default output significantly. Trivial change once `deadline_iso` is populated.
+4. **Auto-exclude expired RFPs by default.** Currently, an expired RFP with full details still passes the inclusion threshold. With `deadline_iso` now populated, adding `expired_at < today` as an exclusion (with a `--include-expired` flag for completeness) would clean up the default output significantly.
 
-5. **Provider fallback chain.** Search APIs change pricing and availability often (Google CSE just demonstrated this). Wrapping `searcher.py` in a chain of providers (Brave → Tavily → SerpAPI) with automatic failover would harden the agent against any one provider going down. ~1 day.
+5. **Provider fallback chain.** Search APIs change pricing and availability often (Google CSE just demonstrated this). Wrapping `searcher.py` in a chain of providers (Brave → Tavily → SerpAPI) with automatic failover would harden the agent against any one provider going down.
 
 ### Medium impact
 
@@ -279,7 +279,7 @@ In rough priority order, weighted by impact-to-effort.
 
 9. **Prompt evals.** The extractor prompt was written by hand and tested manually. Building a small eval suite (golden dataset of 20 known RFPs, measure recall and precision per field) would let me iterate on the prompt safely. Especially valuable for `org_type` (currently produces too many `unknown`s).
 
-10. **Real currency conversion.** Pin a daily FX snapshot from `exchangerate.host` and convert in `extractor.py`. Removes the LLM-estimated USD figures from the schema entirely. ~2 hours.
+10. **Real currency conversion.** Pin a daily FX snapshot from `exchangerate.host` and convert in `extractor.py`. Removes the LLM-estimated USD figures from the schema entirely.
 
 ### Lower impact / nice-to-have
 
@@ -287,7 +287,7 @@ In rough priority order, weighted by impact-to-effort.
 
 12. **Shared LLM client.** `extractor.py` and `drafter.py` each build their own OpenAI client. A single `llm_client.py` with connection pooling and unified retry/circuit-breaker logic would clean this up.
 
-13. **Personalised draft tone.** Pass an agency's voice profile (formal, casual, mission-aligned) into `OUTREACH_SYSTEM_PROMPT` so drafts sound like the agency, not generic. ~1 day with good examples.
+13. **Personalised draft tone.** Pass an agency's voice profile (formal, casual, mission-aligned) into `OUTREACH_SYSTEM_PROMPT` so drafts sound like the agency, not generic.
 
 14. **Slack / HubSpot / Salesforce integrations.** New high-confidence RFPs auto-post to Slack, sync to HubSpot pipelines, or create Salesforce leads. Out of V1 scope but would close the BD loop.
 

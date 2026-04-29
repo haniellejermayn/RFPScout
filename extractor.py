@@ -18,7 +18,8 @@ Design decisions:
     a bad response is cheaper than losing a valid record.
   - deadline_iso is NOT extracted here. The LLM is bad at normalising
     dates consistently. storage.py derives deadline_iso from deadline_raw
-    using a deterministic parser.
+    using a fuzzy date parser, with a year-sanity check so undated or
+    out-of-range strings stay null rather than producing misleading dates.
   - budget_min_usd and budget_max_usd: the LLM is asked to parse these
     as integers, but the output is validated and cast here. If the cast
     fails, both values are set to null rather than crashing.
