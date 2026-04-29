@@ -298,19 +298,19 @@ In rough priority order, weighted by impact-to-effort.
 
 ### Lower impact / nice-to-have
 
-13. **Token usage accounting.** Log per-call token counts to the `runs` table so cost reporting is from real data, not OpenAI's published price.
+14. **Token usage accounting.** Log per-call token counts to the `runs` table so cost reporting is from real data, not OpenAI's published price.
 
-14. **Shared LLM client.** `extractor.py` and `drafter.py` each build their own OpenAI client. A single `llm_client.py` with connection pooling and unified retry/circuit-breaker logic would clean this up.
+15. **Shared LLM client.** `extractor.py` and `drafter.py` each build their own OpenAI client. A single `llm_client.py` with connection pooling and unified retry/circuit-breaker logic would clean this up.
 
-15. **Personalised draft tone.** Pass an agency's voice profile (formal, casual, mission-aligned) into `OUTREACH_SYSTEM_PROMPT` so drafts sound like the agency, not generic.
+16. **Personalised draft tone.** Pass an agency's voice profile (formal, casual, mission-aligned) into `OUTREACH_SYSTEM_PROMPT` so drafts sound like the agency, not generic.
 
-16. **Slack / HubSpot / Salesforce integrations.** New high-confidence RFPs auto-post to Slack, sync to HubSpot pipelines, or create Salesforce leads. Out of V1 scope but would close the BD loop.
+17. **Slack / HubSpot / Salesforce integrations.** New high-confidence RFPs auto-post to Slack, sync to HubSpot pipelines, or create Salesforce leads. Out of V1 scope but would close the BD loop.
 
-17. **Web UI dashboard.** A small Flask/FastAPI dashboard showing the SQLite contents, run history, and a "approve and send" button for drafts. Useful once the CLI loop is too slow for daily review.
+18. **Web UI dashboard.** A small Flask/FastAPI dashboard showing the SQLite contents, run history, and a "approve and send" button for drafts. Useful once the CLI loop is too slow for daily review.
 
-18. **Remaining unit tests.** Scoring and dedup are covered (`tests/test_scorer.py`, `tests/test_deduper.py`). The other modules are integration-tested via the live demo, but proper unit tests for `query_builder.py`, `extractor.py` (fallback paths), `storage.py`, and `writer.py` would catch regressions earlier.
+19. **Remaining unit tests.** Scoring and dedup are covered (`tests/test_scorer.py`, `tests/test_deduper.py`). The other modules are integration-tested via the live demo, but proper unit tests for `query_builder.py`, `extractor.py` (fallback paths), `storage.py`, and `writer.py` would catch regressions earlier.
 
-19. **More sectors and services.** Currently 8 sectors and 8 service types. Adding sub-categories (`marketing → email marketing`, `consulting → strategy vs ops`) would give agencies finer targeting.
+20. **More sectors and services.** Currently 8 sectors and 8 service types. Adding sub-categories (`marketing → email marketing`, `consulting → strategy vs ops`) would give agencies finer targeting.
 
 ---
 
