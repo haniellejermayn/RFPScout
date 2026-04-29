@@ -10,16 +10,23 @@ Built for the Fuller Focus AI Engineer Intern take-home (RFP track).
 
 The fastest way to see RFPScout work is the demo flag, which runs the full pipeline against fixture files. No API keys needed.
 
+> **Note:** This project uses Python 3. On some systems, you may need to use `python3` instead of `python`.
+
 ```bash
-git clone <this-repo>
+git clone https://github.com/haniellejermayn/RFPScout
 cd RFPScout
 
-python3 -m venv venv
-source venv/bin/activate          # macOS / Linux
-# venv\Scripts\activate           # Windows
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate          # macOS / Linux
+# .venv\Scripts\activate           # Windows (cmd)
+# .venv\Scripts\Activate.ps1       # Windows (PowerShell)
 
 pip install -r requirements.txt
 
+# Run demo
 python agent.py --demo
 ```
 
