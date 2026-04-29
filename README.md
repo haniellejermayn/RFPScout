@@ -112,7 +112,7 @@ For an agency BD person, RFPScout collapses a multi-hour task into a single CLI 
 - **Speed.** The live test during development took ~3 minutes for 35 search results — most of that is HTTP fetching.
 - **Triage.** The 0-100 confidence score surfaces fresh, well-specified RFPs first.
 - **Action-ready output.** CSV/JSON exports plug into Salesforce, HubSpot, or a spreadsheet workflow. Drafts in Gmail mean the rep's next click is "send."
-- **Coverage.** Search + LLM generalises across any nonprofit CMS, no per-site scrapers.
+- **Coverage.** Search + LLM generalizes across any nonprofit CMS, no per-site scrapers.
 
 ### 3. Why This Approach
 
@@ -120,7 +120,7 @@ I considered three directions before picking this one.
 
 - **Bespoke scrapers per nonprofit website.** Highest extraction quality but doesn't scale — every new nonprofit means new code. Wrong fit for a V1.
 - **Pre-aggregated RFP databases (RFPdb, BidNet, etc.).** Fastest to build, but agencies already use these, and the most valuable RFPs (small/medium nonprofits) often skip the aggregators entirely.
-- **Search + LLM extraction.** Generalises across any nonprofit's site, catches RFPs the aggregators miss. Trade-off: per-page LLM cost and slower than scrapers, but the cost is small (~$0.0001 per page with `gpt-4o-mini`) and the agent runs in the background.
+- **Search + LLM extraction.** Generalizes across any nonprofit's site, catches RFPs the aggregators miss. Trade-off: per-page LLM cost and slower than scrapers, but the cost is small (~$0.0001 per page with `gpt-4o-mini`) and the agent runs in the background.
 
 The third option also has the best path to V2: the same architecture supports more sectors, more services, more search providers, and richer extraction without rewriting the core.
 
@@ -167,11 +167,11 @@ scorer.py  →  deduper.py  →  storage.py  →  writer.py  →  drafter.py
 
 Weights and thresholds are constants — easy to tune.
 
-**`deduper.py`** — Two-pass merge. First pass groups by `rfp_id` (SHA-256 of normalised URL) for exact matches. Second pass uses `rapidfuzz.token_set_ratio ≥ 85` plus matching `service_type` to catch suffix variations like `"ABC Foundation"` vs `"ABC Foundation Inc."`. Higher confidence score wins on conflict; `sources_json` lists are union-merged.
+**`deduper.py`** — Two-pass merge. First pass groups by `rfp_id` (SHA-256 of normalized URL) for exact matches. Second pass uses `rapidfuzz.token_set_ratio ≥ 85` plus matching `service_type` to catch suffix variations like `"ABC Foundation"` vs `"ABC Foundation Inc."`. Higher confidence score wins on conflict; `sources_json` lists are union-merged.
 
 **`storage.py`** — SQLite with WAL mode. Upsert is conditional: a new record only overwrites an existing one if its score is higher (or the existing one was a parse error). This means reruns don't degrade good data. There's also a `runs` table that logs every agent invocation with start/finish timestamps and counts.
 
-**`writer.py`** — Regenerates `rfps.csv` and `rfps.json` from SQLite after every run. CSV uses utf-8-sig for clean Excel opening; JSON pretty-prints with `sources_json` deserialised to a real array (not a string-of-JSON).
+**`writer.py`** — Regenerates `rfps.csv` and `rfps.json` from SQLite after every run. CSV uses utf-8-sig for clean Excel opening; JSON pretty-prints with `sources_json` deserialized to a real array (not a string-of-JSON).
 
 **`drafter.py`** — Optional. For records ≥ DRAFT_THRESHOLD (default 60) with a `contact_email`, calls `gpt-4o` with a brief outreach prompt. Appends to `data/email_drafts.json` (never overwrites). With `--drafts gmail`, saves each draft via the Gmail API.
 
@@ -217,7 +217,7 @@ Order of magnitude: **~3 cents per run**, dominated by the optional drafter.
 
 ### 8. Limitations
 
-- **Scanned PDFs are skipped.** No OCR in V1. The agent surfaces them as `error="scanned_pdf"` so they're visible for debugging.
+- **Extraction is text-only with known gaps.** Scanned PDFs are skipped (no OCR in V1) and surfaced as `error="scanned_pdf"`. Digital PDFs and HTML are flattened to plain text — multi-column layouts, tables, and section hierarchy are lost. Fetched content is truncated to 8,000 characters, so very long documents are only partially seen by the extractor.
 - **Anti-scraping blocks some sources.** Several nonprofit aggregators 403'd the agent on PDF endpoints despite a browser-like User-Agent. In the single live test, this hit roughly a quarter of the PDF URLs.
 - **Currency conversion is not real.** Budgets in non-USD currencies are stored faithfully in `budget_raw`, but `budget_min_usd` / `budget_max_usd` rely on the LLM's training-data sense of FX rates — fine for ballpark scoring, not real numbers.
 - **Expired deadlines aren't auto-excluded.** They score 0 for the deadline component, but pass the inclusion threshold on completeness. Triage by sorting CSV by `deadline_iso` (when the user wants only fresh ones).
@@ -250,13 +250,13 @@ The assignment explicitly asks how an agent could find RFPs that aren't publishe
 
 1. **Direct nonprofit outreach.** Build a sister agent that emails 501(c)(3)s on a watchlist asking "are you currently planning any vendor procurement?". A simple form-link in the email lets nonprofits respond in 60 seconds. This is essentially a contact-data agent (the assignment's other track) layered on top of RFPScout's discovery output.
 
-2. **LinkedIn signal mining.** Nonprofits often hint at upcoming procurement on LinkedIn ("excited to begin our website refresh") weeks before the RFP drops. A LinkedIn-aware agent could surface these as "warm leads" and prep an agency for the formal RFP.
+2. **Job postings as a leading indicator.** When a nonprofit posts a "marketing director" or "head of digital" job, an RFP is often 3-6 months out. Scraping job boards (Indeed, NTEN, etc.) and cross-referencing nonprofit names against an agency's prospect list catches these signals early.
 
-3. **Job postings as a leading indicator.** When a nonprofit posts a "marketing director" or "head of digital" job, an RFP is often 3-6 months out. Scraping job boards (Indeed, NTEN, etc.) and cross-referencing nonprofit names against an agency's prospect list catches these signals early.
+3. **Foundation funding announcements.** When a foundation announces a multi-year grant to a nonprofit (Gates, MacArthur, Robert Wood Johnson), procurement follows. Tracking these announcements gives agencies advance notice.
 
-4. **Foundation funding announcements.** When a foundation announces a multi-year grant to a nonprofit (Gates, MacArthur, Robert Wood Johnson), procurement follows. Tracking these announcements gives agencies advance notice.
+4. **Vendor relationship intelligence.** Many nonprofits change website agencies every 4-6 years. Tracking which agency built which nonprofit's current website (visible via "site by X" footers, GitHub commits, etc.) and surfacing nonprofits whose sites are 4+ years old gives agencies a non-public signal.
 
-5. **Vendor relationship intelligence.** Many nonprofits change website agencies every 4-6 years. Tracking which agency built which nonprofit's current website (visible via "site by X" footers, GitHub commits, etc.) and surfacing nonprofits whose sites are 4+ years old gives agencies a non-public signal.
+5. **Listserv and newsletter monitoring.** RFPs for smaller nonprofits often circulate on NTEN, AFP, and Communications Network email lists before public posting. An agency subscribes a dedicated inbox to relevant lists; the agent monitors it via IMAP and passes digests through the same extraction pipeline — no new infrastructure needed.
 
 The common thread: non-public RFPs become "public" if you watch the right adjacent signals. RFPScout's architecture (search + extract + score + draft) extends naturally to any of these once V1 is live.
 
@@ -302,7 +302,7 @@ In rough priority order, weighted by impact-to-effort.
 
 15. **Shared LLM client.** `extractor.py` and `drafter.py` each build their own OpenAI client. A single `llm_client.py` with connection pooling and unified retry/circuit-breaker logic would clean this up.
 
-16. **Personalised draft tone.** Pass an agency's voice profile (formal, casual, mission-aligned) into `OUTREACH_SYSTEM_PROMPT` so drafts sound like the agency, not generic.
+16. **Personalized draft tone.** Pass an agency's voice profile (formal, casual, mission-aligned) into `OUTREACH_SYSTEM_PROMPT` so drafts sound like the agency, not generic.
 
 17. **Slack / HubSpot / Salesforce integrations.** New high-confidence RFPs auto-post to Slack, sync to HubSpot pipelines, or create Salesforce leads. Out of V1 scope but would close the BD loop.
 
@@ -401,7 +401,7 @@ RFPScout/
 └── data/                 # Created at runtime; gitignored, not committed
     ├── rfps.db           # SQLite database
     ├── rfps.csv          # Latest export
-    ├── rfps.json         # Latest export (with deserialised arrays)
+    ├── rfps.json         # Latest export (with deserialized arrays)
     └── email_drafts.json # Accumulated draft history
 ```
 
