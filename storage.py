@@ -457,11 +457,9 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-# Acceptable year range for parsed deadlines. RFPs from before 2020 are
-# almost certainly stale fixtures; deadlines beyond 2031 are almost
-# certainly parser confusion (a number that looks like a year but isn't).
+# Acceptable year range for parsed deadlines (min and max may be adjusted as needed).
 _DEADLINE_YEAR_MIN = 2020
-_DEADLINE_YEAR_MAX = 2031
+_DEADLINE_YEAR_MAX = datetime.now().year + 5
 
 
 def _derive_deadline_iso(raw: Optional[str]) -> Optional[str]:
