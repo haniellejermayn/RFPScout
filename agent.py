@@ -156,14 +156,31 @@ def _setup_logging(verbose: bool) -> None:
 # ---------------------------------------------------------------------------
 
 def _resolve_inputs(args: argparse.Namespace) -> tuple[str, str, int, str]:
-    """
-    Return (sector, service, pages, drafts_mode), prompting interactively
-    only for fields the user did not supply on the command line.
-    """
+    interactive = not args.sector  # proxy for "no CLI flags supplied"
+
     sector = args.sector or _prompt_select("Which sector?", list_sectors())
     service = args.service or _prompt_select("Which service type?", list_services())
-    pages = args.pages
-    drafts_mode = args.drafts
+
+    if interactive:
+        pages_str = _prompt_select(
+            "How many search result pages per query? (1–10)",
+            [str(i) for i in range(1, 11)],
+        )
+        pages = int(pages_str)  
+        
+        drafts_mode = _prompt_select(
+            "Generate outreach drafts?",
+            ["No drafts", "Save locally (email_drafts.json)", "Save to Gmail Drafts"],
+        )
+        drafts_map = {
+            "No drafts": "none",
+            "Save locally (email_drafts.json)": "local",
+            "Save to Gmail Drafts": "gmail",
+        }
+        drafts_mode = drafts_map[drafts_mode]
+    else:
+        pages = args.pages
+        drafts_mode = args.drafts
 
     return sector, service, pages, drafts_mode
 
