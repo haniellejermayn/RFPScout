@@ -12,9 +12,8 @@ DATA_DIR.mkdir(exist_ok=True)
 EXAMPLES_DIR.mkdir(exist_ok=True)
 
 # Search
-SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "demo")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID", "")
+SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "demo")  # "demo" or "brave"
+BRAVE_API_KEY = os.getenv("BRAVE_API_KEY", "")
 
 # LLM
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
