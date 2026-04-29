@@ -39,6 +39,10 @@ from urllib.parse import urlparse
 
 from dateutil import parser as date_parser
 
+import warnings
+from dateutil.parser import UnknownTimezoneWarning
+warnings.filterwarnings("ignore", category=UnknownTimezoneWarning)
+
 logger = logging.getLogger(__name__)
 
 
