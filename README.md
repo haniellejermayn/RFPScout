@@ -168,7 +168,7 @@ Weights and thresholds are constants — easy to tune.
 
 **`drafter.py`** — Optional. For records ≥ DRAFT_THRESHOLD (default 60) with a `contact_email`, calls `gpt-4o` with a brief outreach prompt. Appends to `data/email_drafts.json` (never overwrites). With `--drafts gmail`, saves each draft via the Gmail API.
 
-**`gmail_client.py`** — Thin wrapper around Google's Gmail API: OAuth on first run (browser-based), `save_draft()` for everything else. Adapted from a previous outreach project; the send/reply/label features were stripped because RFPScout never sends — only drafts. Drafts wait in Gmail's Drafts folder for a human to review and send.
+**`gmail_client.py`** — Thin wrapper around Google's Gmail API: OAuth on first run (browser-based), `save_draft()` for everything else. Adapted from my [NonprofitReach](https://github.com/haniellejermayn/nonprofitreach) project; the send/reply/label features were stripped because RFPScout never sends — only drafts. Drafts wait in Gmail's Drafts folder for a human to review and send.
 
 ### 6. Tools & Tech
 
