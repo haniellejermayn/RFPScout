@@ -111,9 +111,15 @@ Rules:
   3. Reference the project type and organisation name.
   4. End with a clear, low-pressure call to action.
   5. Do not fabricate facts about the agency or the nonprofit.
-  6. Return only the email body. No subject line. No sign-off beyond
-     a simple closing. The caller will add those separately.
+  6. Return only the email body. End with a simple closing line such as
+     "Best regards," or "Warm regards," — but DO NOT include any
+     bracketed placeholders like [Your Name], [Agency Name], or
+     [Recipient's Name]. The caller will fill those in. The closing
+     line should be the literal last thing in your output.
   7. Use a warm but professional tone — not corporate, not casual.
+  8. If a contact name is provided, use it in the salutation. If not,
+     use a generic but warm salutation. Never use bracketed
+     placeholders for the recipient.
 """
 
 
@@ -127,13 +133,23 @@ def outreach_user_prompt(rfp: dict) -> str:
     service = rfp.get("service_type") or "services"
     description = rfp.get("project_description") or "the project described in their RFP"
     deadline = rfp.get("deadline_raw") or rfp.get("deadline_iso") or "an upcoming deadline"
+    contact_name = rfp.get("contact_name")
+
+    # If we have a contact name, use it. Otherwise tell the LLM to use a generic salutation.
+    salutation_hint = (
+        f"The named contact is {contact_name}. Address the email to them by first name."
+        if contact_name
+        else "No named contact is available. Use a generic but warm salutation like "
+             "'Hello' or 'Hi there' — do not use bracketed placeholders like [Recipient's Name]."
+    )
 
     return (
         f"Write an outreach email body for the following RFP opportunity.\n\n"
         f"Organisation: {org}\n"
         f"Service type: {service}\n"
         f"Project description: {description}\n"
-        f"Submission deadline: {deadline}\n\n"
+        f"Submission deadline: {deadline}\n"
+        f"\n{salutation_hint}\n\n"
         "Write only the email body. Do not include a subject line or "
         "sign-off beyond a simple closing line."
     )
