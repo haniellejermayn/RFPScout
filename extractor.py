@@ -259,6 +259,24 @@ def _validate_and_clean(data: dict) -> dict:
 
         cleaned[field] = value
 
+    # Filter out common anti-scrape placeholder strings
+    EMAIL_PLACEHOLDERS = {
+        "[email protected]",
+        "[email\xa0protected]",   # sometimes uses non-breaking space
+    }
+    EMAIL_NOISE_PATTERNS = (
+        "spambots",
+        "javascript enabled",
+        "email is being protected",
+    )
+
+    if cleaned.get("contact_email"):
+        email_lower = cleaned["contact_email"].lower()
+        if (cleaned["contact_email"] in EMAIL_PLACEHOLDERS or
+            any(p in email_lower for p in EMAIL_NOISE_PATTERNS) or
+            "@" not in cleaned["contact_email"]):
+            cleaned["contact_email"] = None    
+
     # Validate org_type
     if cleaned["org_type"] and cleaned["org_type"].lower() not in VALID_ORG_TYPES:
         logger.debug(
