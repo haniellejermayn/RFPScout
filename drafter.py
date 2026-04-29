@@ -30,6 +30,7 @@ Design decisions:
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -186,6 +187,12 @@ def _generate_body(record: dict) -> Optional[str]:
             record.get("source_url"),
         )
         return None
+
+    # Strip any bracketed placeholders the LLM left behind despite the prompt.
+    # E.g. "[Your Name]", "[Agency Name]", "[Recipient's Name]"
+    body = re.sub(r"\[(Your|Agency|Recipient'?s)[^\]]*\]\s*", "", body, flags=re.IGNORECASE)
+    body = body.strip()
+        
     return body
 
 
