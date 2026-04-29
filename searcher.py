@@ -76,15 +76,16 @@ _FIXTURE_PATH = EXAMPLES_DIR / "sample_search_results.json"
 # Public API
 # ---------------------------------------------------------------------------
 
-def search(queries: list[str], pages: int = 1) -> list[dict]:
+def search(queries: list[str], pages: int = 1, force_demo: bool = False) -> list[dict]:
     """
     Run all queries and return deduplicated search results.
 
     Args:
-        queries: List of query strings from query_builder.build_queries().
-        pages:   Number of result pages to fetch per query (each page = 10
-                 results). Brave caps this at 10 (offset 0-9). Values
-                 above 10 are silently clamped.
+        queries:    List of query strings from query_builder.build_queries().
+        pages:      Number of result pages to fetch per query.
+        force_demo: If True, always use the fixture file regardless of
+                    SEARCH_PROVIDER. Set by agent.py when --demo is passed
+                    so the flag always wins over env config.
 
     Returns:
         Deduplicated list of result dicts:
@@ -96,7 +97,7 @@ def search(queries: list[str], pages: int = 1) -> list[dict]:
         - Results are deduplicated by URL across all queries and pages.
         - Returns an empty list (not an exception) if all queries fail.
     """
-    if SEARCH_PROVIDER == "demo":
+    if force_demo or SEARCH_PROVIDER == "demo":
         return _load_fixture()
 
     if not BRAVE_API_KEY:

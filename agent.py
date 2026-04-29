@@ -247,7 +247,7 @@ def _run_pipeline(
     logger.info("Built %d search queries", len(queries))
 
     # --- Step 3: search ---
-    results = search(queries, pages=pages)
+    results = search(queries, pages=pages, force_demo=demo)
     stats["search_results"] = len(results)
     if not results:
         logger.warning("No search results returned. Nothing to do.")
