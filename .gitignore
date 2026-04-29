@@ -13,6 +13,7 @@ token.json
 credentials.json
 
 # Local data outputs
+data/
 data/*.db
 data/*.csv
 data/*.json
@@ -21,3 +22,12 @@ data/*.json
 .DS_Store
 .vscode/
 .idea/
+
+# Pyc / mypy / pytest caches
+.mypy_cache/
+.pytest_cache/
+
+# Build artifacts
+*.egg-info/
+build/
+dist/
